@@ -37,7 +37,11 @@ jobs:
             echo "::error::Secret TOKEN 未设置。请在 Settings -> Secrets and variables -> Actions 新建 TOKEN，值直接粘贴你的库街区 token"
             exit 1
           fi
-          printf 'enable: true\ntoken: %s\n' "$TOKEN" > config/NaZawsze.yaml
+          TOKEN_CLEAN=$(printf '%s' "$TOKEN" | tr -d '[:space:]' | tr -d '"'"'")
+          if [ "$TOKEN_CLEAN" != "$TOKEN" ]; then
+            echo "::warning::TOKEN 中检测到空白或引号字符，已自动清理（建议之后在 Secret 里重新粘贴干净的值）"
+          fi
+          printf 'enable: true\ntoken: %s\n' "$TOKEN_CLEAN" > config/NaZawsze.yaml
           echo "用户配置已写入（为保护 token 不打印内容）"
 
       - name: Write push config (optional)
@@ -76,7 +80,7 @@ jobs:
           fi
           if grep -E "签到失败的用户:" result.log | grep -vq "签到失败的用户: 无" \
             || grep -qE "已自动禁用的用户|登录已过期" result.log; then
-            echo "::error::有用户签到失败。token 过期时请重新抓取并更新 KURO_CONFIG"
+            echo "::error::有用户签到失败。token 过期时请重新抓取并更新 Secret TOKEN"
             ok=0
           fi
           if [ "$ok" != 1 ]; then exit 1; fi
