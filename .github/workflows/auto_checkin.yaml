@@ -30,14 +30,14 @@ jobs:
 
       - name: Write user config
         env:
-          KURO_CONFIG: ${{ secrets.KURO_CONFIG }}
+          TOKEN: ${{ secrets.TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "$KURO_CONFIG" ]; then
-            echo "::error::Secret KURO_CONFIG 未设置。请在 Settings -> Secrets and variables -> Actions 新建 KURO_CONFIG，内容为 yaml 用户配置（至少包含 enable: true 和 token: 你的token）"
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Secret TOKEN 未设置。请在 Settings -> Secrets and variables -> Actions 新建 TOKEN，值直接粘贴你的库街区 token"
             exit 1
           fi
-          printf '%s\n' "$KURO_CONFIG" > config/NaZawsze.yaml
+          printf 'enable: true\ntoken: %s\n' "$TOKEN" > config/NaZawsze.yaml
           echo "用户配置已写入（为保护 token 不打印内容）"
 
       - name: Write push config (optional)
