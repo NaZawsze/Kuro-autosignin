@@ -71,7 +71,7 @@ jobs:
             ok=0
           fi
           if grep -q "签到成功的用户: 无" result.log; then
-            echo "::error::没有任何用户签到成功，请检查 KURO_CONFIG 配置（常见原因：token 无效或 enable 为 false）"
+            echo "::error::没有任何用户签到成功，请检查 Secret TOKEN（常见原因：token 无效或已过期）"
             ok=0
           fi
           if grep -E "签到失败的用户:" result.log | grep -vq "签到失败的用户: 无" \
