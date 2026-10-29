@@ -1,0 +1,83 @@
+name: Kuro Auto Signin
+
+on:
+  schedule:
+    # UTC 23:00 = 北京时间每天 07:00（GitHub 定时任务可能延迟几分钟）
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 输出 DEBUG 日志（排查 token / 接口问题时开启）
+        type: boolean
+        default: false
+
+jobs:
+  signin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install requests pyyaml httpx loguru pytz crontab
+
+      - name: Write user config
+        env:
+          KURO_CONFIG: ${{ secrets.KURO_CONFIG }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KURO_CONFIG" ]; then
+            echo "::error::Secret KURO_CONFIG 未设置。请在 Settings -> Secrets and variables -> Actions 新建 KURO_CONFIG，内容为 yaml 用户配置（至少包含 enable: true 和 token: 你的token）"
+            exit 1
+          fi
+          printf '%s\n' "$KURO_CONFIG" > config/NaZawsze.yaml
+          echo "用户配置已写入（为保护 token 不打印内容）"
+
+      - name: Write push config (optional)
+        env:
+          KURO_PUSH_INI: ${{ secrets.KURO_PUSH_INI }}
+        run: |
+          if [ -n "$KURO_PUSH_INI" ]; then
+            printf '%s\n' "$KURO_PUSH_INI" > config/push.ini
+            echo "推送配置已写入"
+          else
+            echo "未设置 KURO_PUSH_INI，跳过（签到结果请看本次运行日志）"
+          fi
+
+      - name: Run sign-in
+        env:
+          DEBUG_FLAG: ${{ inputs.debug && '--debug' || '' }}
+        run: |
+          set -euo pipefail
+          python main.py $DEBUG_FLAG 2>&1 | tee result.log
+
+      - name: Check result
+        if: always()
+        run: |
+          if [ ! -f result.log ]; then
+            echo "::error::没有运行日志，签到步骤未执行"
+            exit 1
+          fi
+          ok=1
+          if ! grep -q "签到结果总结" result.log; then
+            echo "::error::程序未输出结果总结，可能中途崩溃，请查看上方日志"
+            ok=0
+          fi
+          if grep -q "签到成功的用户: 无" result.log; then
+            echo "::error::没有任何用户签到成功，请检查 KURO_CONFIG 配置（常见原因：token 无效或 enable 为 false）"
+            ok=0
+          fi
+          if grep -E "签到失败的用户:" result.log | grep -vq "签到失败的用户: 无" \
+            || grep -qE "已自动禁用的用户|登录已过期" result.log; then
+            echo "::error::有用户签到失败。token 过期时请重新抓取并更新 KURO_CONFIG"
+            ok=0
+          fi
+          if [ "$ok" != 1 ]; then exit 1; fi
+          echo "所有用户签到成功"
